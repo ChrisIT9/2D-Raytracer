@@ -1,11 +1,14 @@
 package com.company;
 
+import org.w3c.dom.ls.LSOutput;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
+
 
 public class Space2D extends JComponent implements MouseListener, KeyListener, MouseWheelListener, MouseMotionListener, Runnable {
     private ArrayList<GeometricObject> objects;
@@ -19,6 +22,8 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
     private BufferedImage[] subImages;
     private int heightTasks;
     private int widthTasks;
+    Timestamp initialT, finalT;
+    private AlphaComposite ac;
 
 
     public Space2D(int width, int height) {
@@ -39,6 +44,9 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
         subImages = new BufferedImage[4];
         heightTasks = height / 2;
         widthTasks = width / 2;
+        initialT = new Timestamp(0);
+        finalT = new Timestamp(0);
+        ac = AlphaComposite.getInstance(AlphaComposite.SRC_ATOP);
 
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(this, Integer.toString(i));
@@ -46,6 +54,11 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
             threads[i].start();
             //System.out.println("Started thread " + threads[i].getName());
         }
+    }
+
+    private void resetSubImages() {
+        for (int i = 0; i < threads.length; i++)
+            subImages[i] = new BufferedImage(widthTasks, heightTasks, BufferedImage.TYPE_INT_ARGB);
     }
 
     public void addObject(GeometricObject object) {
@@ -61,15 +74,25 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
         super.paintComponent(g);
         g.setColor(new Color(76, 76, 76, 255));
         g.fillRect(0, 0, width, height);
-        g.drawImage(subImages[0], 0, 0, this);
-        g.drawImage(subImages[1], 320, 0, this);
-        g.drawImage(subImages[2], 0, 240, this);
-        g.drawImage(subImages[3], 320, 240, this);
+
+        /*g.drawImage(subImages[0], 0, 0, this);
+        g.drawImage(subImages[1], widthTasks, 0, this);
+        g.drawImage(subImages[2], 0, heightTasks, this);
+        g.drawImage(subImages[3], widthTasks, heightTasks, this);*/
+        Graphics2D g2d = image.createGraphics();
+        g2d.setComposite(ac);
+        g2d.drawImage(subImages[0], 0, 0, this);
+        g2d.drawImage(subImages[1], widthTasks, 0, this);
+        g2d.drawImage(subImages[2], 0, heightTasks, this);
+        g2d.drawImage(subImages[3], widthTasks, heightTasks, this);
+        g.drawImage(image, 0, 0, this);
+
     }
 
     public void renderImage() {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(this, Integer.toString(i));
+            threads[i].setPriority(10);
             threads[i].start();
         }
     }
@@ -84,6 +107,10 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
     public void keyPressed(KeyEvent e) {
         switch(e.getKeyCode()) {
             case KeyEvent.VK_R:
+                objects.clear();
+                resetSubImages();
+                resetImage();
+                renderImage();
                 repaint();
                 break;
             case KeyEvent.VK_A:
@@ -97,6 +124,10 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
         }
     }
 
+    private void resetImage() {
+        image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+    }
+
     @Override
     public void keyReleased(KeyEvent e) {
 
@@ -108,7 +139,7 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
         int x = e.getX(), y = e.getY();
         if (inPlaceMode) {
             System.out.println(x + " " + y);
-            addObject(new Sphere(x, y, Color.BLUE, radius));
+            addObject(new Sphere(x, y, Utilities.getRandomColor(), radius));
             inPlaceMode = false;
             radius = 30;
         }
@@ -116,6 +147,9 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
             addLightSource(new LightSource(x, y));
             lightPlaceMode = false;
         }
+        initialT = new Timestamp(System.currentTimeMillis());
+        resetSubImages();
+        resetImage();
         renderImage();
         for(int i = 0; i < threads.length; i++) {
             try {
@@ -124,6 +158,9 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
                 interruptedException.printStackTrace();
             }
         }
+        finalT = new Timestamp(System.currentTimeMillis());
+        long differenceInSeconds = (finalT.getTime() - initialT.getTime()) / 1000 % 60;
+        System.out.println("Render took " + differenceInSeconds + " seconds.");
         repaint();
     }
 
@@ -227,19 +264,19 @@ public class Space2D extends JComponent implements MouseListener, KeyListener, M
 
                                 for (Coordinates coordinates : possibleHitObject.getPoints()) {
                                     if (Utilities.pointIsBetween(currentCoordinates, coordinates, lightSource.getCoordinates())) {
+                                        double shadowDistance = Utilities.getDistance(currentCoordinates, coordinates);
+                                        Color shadow = Utilities.getDimmerShadow(Color.BLACK, shadowDistance);
                                         //System.out.println("Interception at " + coordinates.getX() + ", " + coordinates.getY());
-                                        subImages[offset].setRGB(internalX, internalY, Color.BLACK.getRGB());
+                                        subImages[offset].setRGB(internalX, internalY, shadow.getRGB());
                                         hitObject = true;
                                         break;
                                     }
                                 }
                             }
                         }
-                        if (!hitObject) {
-                            int distance = (int) Utilities.getDistance(currentCoordinates, lightSource.getCoordinates());
-                            Color newColor = Utilities.getDimmer(object.getColor(), distance);
-                            subImages[offset].setRGB(internalX, internalY, newColor.getRGB());
-                        }
+                        int distance = (int) Utilities.getDistance(currentCoordinates, lightSource.getCoordinates());
+                        Color newColor = Utilities.getDimmer(object.getColor(), distance);
+                        image.setRGB(x, y, newColor.getRGB());
                     }
                 }
             }

@@ -1,6 +1,7 @@
 package com.company;
 
 import java.awt.*;
+import java.util.Random;
 
 public class Utilities {
 
@@ -9,7 +10,7 @@ public class Utilities {
         int g = color.getGreen();
         int b = color.getBlue();
 
-        int offset = factor / 4 * 2;
+        int offset = factor / 3 * 2;
 
         r = r - offset >= 0 ? r - offset : 0;
         g = g - offset >= 0 ? g - offset : 0;
@@ -32,21 +33,22 @@ public class Utilities {
         return (Math.abs(distanceSum - segmentLength) <= 0.005);
     }
 
-    public static Color getDimmerShadow(Color color, int offset) {
-        int alpha = color.getAlpha();
-        int difference = offset / 10 * 5;
 
-        alpha = alpha - difference >= 0 ? alpha - difference : 0;
 
-        return new Color(0, 0, 0, alpha);
+    public static Color getRandomColor() {
+        Random random = new Random();
+        int r = random.nextInt(255);
+        int g = random.nextInt(255);
+        int b = random.nextInt(255);
+
+        return new Color(r, g, b);
     }
 
-    public static Color getAveragedColor(Color color, Color otherColor) {
-        int r = (color.getRed() + otherColor.getRed()) / 2;
-        int g = (color.getGreen() + otherColor.getGreen()) / 2;
-        int b = (color.getBlue() + otherColor.getBlue()) / 2;
-        int alpha = (color.getAlpha() + otherColor.getAlpha()) / 2;
+    public static Color getDimmerShadow(Color color, double distance) {
+        int difference = (int) distance / 6 * 4;
+        int finalValue = color.getAlpha() - difference;
+        int newAlpha = finalValue >= 0 ? finalValue : 0;
 
-        return new Color(r, g, b, alpha);
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), newAlpha);
     }
 }

@@ -7,6 +7,7 @@ public class LightSource {
         center = new Coordinates(x, y);
     }
 
+
     public Coordinates getCoordinates() {
         return center;
     }
